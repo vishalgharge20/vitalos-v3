@@ -150,14 +150,14 @@ export default function App() {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
             <StatCard icon={HiOutlineMoon} label="Sleep" value={today.sleep.duration ?? '—'} unit="h" color="var(--color-vital-violet)" onClick={() => setActiveMetric('sleep')} />
             <StatCard icon={HiOutlineHeart} label="Resting HR" value={today.heart.resting ?? '—'} unit="bpm" color="var(--color-vital-rose)" onClick={() => setActiveMetric('heart')} />
             <StatCard icon={HiOutlineMapPin} label="Steps" value={today.activity.steps ? today.activity.steps.toLocaleString() : '—'} unit="" color="var(--color-ion-500)" onClick={() => setActiveMetric('steps')} />
-            <StatCard icon={HiOutlineScale} label="Weight" value={today.weight?.value ?? '—'} unit="kg" color="var(--color-ion-400)" onClick={() => setActiveMetric('weight')} />
+            {/* <StatCard icon={HiOutlineScale} label="Weight" value={today.weight?.value ?? '—'} unit="kg" color="var(--color-ion-400)" onClick={() => setActiveMetric('weight')} /> */}
             <StatCard icon={HiOutlineFire} label="Active Calories" value={today.activity.calories ?? '—'} unit="kcal" color="var(--color-vital-teal)" onClick={() => setActiveMetric('activeCalories')} />
             <StatCard icon={HiOutlineCloud} label="SpO2" value={today.spo2 ?? '—'} unit="%" color="var(--color-vital-amber)" onClick={() => setActiveMetric('spo2')} />
-            <StatCard icon={HiOutlineBeaker} label="Hydration" value={today.hydration ?? '—'} unit="L" color="var(--color-ion-400)" onClick={() => setActiveMetric('hydration')} />
+            {/* <StatCard icon={HiOutlineBeaker} label="Hydration" value={today.hydration ?? '—'} unit="L" color="var(--color-ion-400)" onClick={() => setActiveMetric('hydration')} /> */}
             <StatCard icon={HiOutlineMapPin} label="Distance" value={today.activity.distance ?? '—'} unit="km" color="var(--color-ion-500)" onClick={() => setActiveMetric('steps')} />
           </div>
         </section>
@@ -202,7 +202,7 @@ export default function App() {
           <h3 className="font-display text-sm font-medium mb-4">Recent Workouts</h3>
           {workouts.length ? (
             <div className="space-y-2">
-              {workouts.map((w, i) => (
+              {workouts.slice(0, 3).map((w, i) => (
                 <div key={i} className="flex items-center justify-between rounded-xl bg-[var(--color-surface)] px-4 py-3 text-sm">
                   <div className="flex items-center gap-2.5">
                     <span className="h-2 w-2 rounded-full bg-[var(--color-ion-500)]" />
