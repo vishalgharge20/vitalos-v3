@@ -1,0 +1,93 @@
+@import "tailwindcss";
+
+/* ===================================================================
+   VitalOS Design Tokens
+   Signature concept: "Pulse Trace" — an ECG/heartbeat line used as a
+   structural motif (dividers, ring tracks, ambient texture) rather
+   than decoration. Palette avoids the generic near-black+acid-green
+   AI look: primary accent is an ion-blue/violet instrument glow,
+   status colors (teal/amber/rose) are reserved for score states only.
+=================================================================== */
+
+@theme {
+  --font-display: "Space Grotesk", "Inter", sans-serif;
+  --font-body: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  /* Surfaces */
+  --color-base: #08090b;
+  --color-base-elevated: #0d0f12;
+  --color-surface: #111318;
+  --color-surface-hover: #171a20;
+  --color-surface-glass: rgba(255, 255, 255, 0.035);
+  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Text */
+  --color-text-primary: #f2f4f6;
+  --color-text-secondary: #9096a3;
+  --color-text-tertiary: #5c6270;
+
+  /* Brand — Ion (instrument-glow blue/violet) */
+  --color-ion-400: #8fa4ff;
+  --color-ion-500: #6b83ff;
+  --color-ion-600: #5566e8;
+  --color-ion-glow: rgba(107, 131, 255, 0.35);
+
+  /* Status accents — used only for state, never as brand wash */
+  --color-vital-teal: #2fd6a7;
+  --color-vital-amber: #f5a95a;
+  --color-vital-rose: #f2607a;
+  --color-vital-violet: #a684f5;
+
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-base);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--color-ion-glow);
+  color: #fff;
+}
+
+/* Thin scrollbars, instrument-panel feel */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 999px;
+}
+
+.glass {
+  background: var(--color-surface-glass);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border);
+}
+
+.font-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
