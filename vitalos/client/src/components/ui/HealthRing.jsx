@@ -72,7 +72,7 @@ export default function HealthRing({ value = 0, size = 240, label = 'Recovery', 
       <div className="absolute flex flex-col items-center">
         <span className="font-display text-5xl font-semibold tracking-tight font-tabular">
           {display}
-          <span className="text-lg text-[var(--color-text-tertiary)]">%</span>
+          <span className="text-lg text-[var(--color-text-tertiary)]"> %</span>
         </span>
         <span className="mt-1 text-sm text-[var(--color-text-secondary)]">{label}</span>
         <span
