@@ -16,6 +16,10 @@ export function createApp({ clientUrl = 'http://localhost:5173' } = {}) {
   // multi-year exports comfortably.
   app.use(express.json({ limit: '15mb' }))
 
+  app.get('/', (req, res) => {
+  res.send('🚀 VitalOS Server Running');
+})
+  
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', service: 'vitalos-api' })
   })
