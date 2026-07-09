@@ -10,10 +10,23 @@ import workoutsRoutes from './routes/workouts.routes.js'
 export function createApp({ clientUrl = 'http://localhost:5173' } = {}) {
   const app = express()
 
-  app.use(cors({ origin: clientUrl }))
-  // Bulk Apple Health imports are still just small JSON aggregates per day
-  // (no images here), but years of history can add up — 15mb covers even
-  // multi-year exports comfortably.
+  const allowedOrigins = clientUrl.split(',').map(origin => origin.trim());
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error(`Origin ${origin} not allowed by CORS`));
+    },
+    credentials: true,
+  })
+);
+
   app.use(express.json({ limit: '15mb' }))
 
   app.get('/', (req, res) => {

@@ -8,6 +8,8 @@ import {
   HiOutlineArrowUpTray,
   HiOutlineMapPin,
   HiOutlineCloud,
+  HiOutlineBolt,
+  HiOutlineClock,
 } from 'react-icons/hi2'
 import {
   ResponsiveContainer,
@@ -22,11 +24,32 @@ import HealthRing from '@/components/ui/HealthRing'
 import StatCard from '@/components/ui/StatCard'
 import ChartCard from '@/components/ui/ChartCard'
 import { RecommendationCard } from '@/components/ui/InsightCard'
-import PulseDivider from '@/components/ui/PulseDivider'
 import ImportModal from '@/components/ui/ImportModal'
 import MetricDetailModal from '@/components/ui/MetricDetailModal'
 import { getTodayRecord, getLastNDays, dummyWorkouts } from '@/data/dummyData'
 import { getRecords, getWorkouts } from '@/api/client'
+import { computeStrain, computeRecovery } from '@/utils/wellness'
+
+const CACHE_KEY = 'vitalos_dashboard_cache_v1'
+const FETCH_WINDOW_DAYS = 120 // dashboard only ever needs recent history — cuts payload size a lot on multi-year exports
+
+// ---- Whoop-style zone coloring ------------------------------------------
+const NEUTRAL = 'var(--color-text-secondary)'
+const GOOD = 'var(--color-vital-teal)'
+const OK = 'var(--color-vital-amber)'
+const LOW = 'var(--color-vital-rose)'
+
+function zone(value, { goodMin, okMin, invert = false } = {}) {
+  if (value == null) return NEUTRAL
+  if (invert) {
+    if (value <= goodMin) return GOOD
+    if (value <= okMin) return OK
+    return LOW
+  }
+  if (value >= goodMin) return GOOD
+  if (value >= okMin) return OK
+  return LOW
+}
 
 function buildAdvice(today) {
   const advice = []
@@ -44,43 +67,81 @@ function buildAdvice(today) {
   if (today.spo2 != null && today.spo2 < 95) {
     advice.push({ text: `SpO2 read ${today.spo2}% — a little lower than typical, worth keeping an eye on.`, color: 'var(--color-vital-rose)' })
   }
+  if (today.activity.exerciseMinutes != null && today.activity.exerciseMinutes < 20) {
+    advice.push({ text: `Only ${today.activity.exerciseMinutes} exercise minutes so far — WHO guidance is ~30/day.`, color: 'var(--color-vital-amber)' })
+  }
   return advice.slice(0, 4)
 }
 
+function readCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+function writeCache(records, workouts) {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ records, workouts, cachedAt: Date.now() }))
+  } catch {
+    // localStorage full/unavailable — non-fatal, just skip caching
+  }
+}
+
 export default function App() {
-  const [records, setRecords] = useState(null) // null = still loading
-  const [workouts, setWorkouts] = useState([])
+  const cached = useState(() => readCache())[0]
+
+  // Paint instantly from cache if we have it; only show the full loading
+  // screen on a genuinely cold start with nothing cached yet.
+  const [records, setRecords] = useState(cached?.records ?? null)
+  const [workouts, setWorkouts] = useState(cached?.workouts ?? [])
   const [usingDemoData, setUsingDemoData] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [activeMetric, setActiveMetric] = useState(null)
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async ({ background = false } = {}) => {
+    if (background) setRefreshing(true)
     try {
-      const [recordsData, workoutsData] = await Promise.all([getRecords(), getWorkouts(15)])
+      const from = new Date(Date.now() - FETCH_WINDOW_DAYS * 86400000).toISOString().slice(0, 10)
+      const [recordsData, workoutsData] = await Promise.all([getRecords({ from }), getWorkouts(15)])
       if (recordsData.length) {
         setRecords(recordsData)
         setWorkouts(workoutsData)
         setUsingDemoData(false)
-      } else {
-        // Server reachable but nothing imported yet — show demo data so
-        // the dashboard isn't empty, clearly labeled as such.
+        writeCache(recordsData, workoutsData)
+      } else if (!cached) {
         setRecords(getLastNDays(90))
         setWorkouts(dummyWorkouts)
         setUsingDemoData(true)
       }
     } catch {
-      setRecords(getLastNDays(90))
-      setWorkouts(dummyWorkouts)
-      setUsingDemoData(true)
+      if (!cached) {
+        setRecords(getLastNDays(90))
+        setWorkouts(dummyWorkouts)
+        setUsingDemoData(true)
+      }
+    } finally {
+      setRefreshing(false)
     }
-  }, [])
+  }, [cached])
 
   useEffect(() => {
-    loadData()
-  }, [loadData])
+    // Cache paints immediately (if present); this fetch always runs to
+    // pick up anything imported since the cache was written.
+    loadData({ background: !!cached })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const today = records ? records[records.length - 1] : getTodayRecord()
   const last14 = useMemo(() => (records ? records.slice(-14) : getLastNDays(14)), [records])
+  const last30 = useMemo(() => (records ? records.slice(-30) : getLastNDays(30)), [records])
+
+  const recovery = useMemo(() => computeRecovery(today, last30), [today, last30])
+  const strain = useMemo(() => computeStrain(today), [today])
 
   const trendData = useMemo(
     () =>
@@ -116,7 +177,9 @@ export default function App() {
           </svg>
           <div>
             <p className="font-display text-[15px] font-semibold leading-none">VitalOS</p>
-            <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)] leading-none">Your Personal Health Dashboard</p>
+            <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)] leading-none">
+              {refreshing ? 'Updating…' : 'Your Personal Health Dashboard'}
+            </p>
           </div>
         </div>
         <button
@@ -136,30 +199,139 @@ export default function App() {
           </div>
         )}
 
-        {/* Hero */}
-        <section className="grid grid-cols-1 gap-5 lg:grid-cols-[auto_1fr]">
-          <div className="glass flex flex-col items-center justify-center rounded-3xl p-8">
-            <HealthRing
-              value={today.sleep.score ?? 0}
-              label="Sleep Score (est.)"
-              sublabel={today.sleep.score == null ? 'No sleep data' : undefined}
-            />
-            <PulseDivider className="mt-6 max-w-[180px]" />
-            <p className="mt-4 max-w-[200px] text-center text-xs leading-relaxed text-[var(--color-text-tertiary)]">
-              Estimated from duration vs. an 8h target
-            </p>
+        {/* Whoop-style triple ring hero: Recovery / Sleep / Strain */}
+        <section className="glass rounded-3xl p-6 sm:p-8">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
+            <div className="flex flex-col items-center">
+              <HealthRing
+                value={recovery ?? 0}
+                size={168}
+                label="Recovery (est.)"
+                sublabel={recovery == null ? 'Not enough data' : undefined}
+              />
+            </div>
+            <div className="flex flex-col items-center">
+              <HealthRing
+                value={today.sleep.score ?? 0}
+                size={168}
+                label="Sleep Score (est.)"
+                sublabel={today.sleep.score == null ? 'No sleep data' : undefined}
+              />
+            </div>
+            <div className="flex flex-col items-center">
+              <HealthRing
+                value={strain != null ? Math.round((strain / 21) * 100) : 0}
+                size={168}
+                label="Strain (est.)"
+                sublabel={strain != null ? `${strain} / 21` : 'No activity data'}
+              />
+            </div>
           </div>
+          <p className="mt-6 text-center text-xs leading-relaxed text-[var(--color-text-tertiary)]">
+            Recovery and Strain are estimates built from resting heart rate, sleep, and activity —
+            Apple Health doesn't provide Whoop-style scores directly, so these are transparent
+            approximations, not clinical measurements.
+          </p>
+        </section>
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <StatCard icon={HiOutlineMoon} label="Sleep" value={today.sleep.duration ?? '—'} unit="h" color="var(--color-vital-violet)" onClick={() => setActiveMetric('sleep')} />
-            <StatCard icon={HiOutlineHeart} label="Resting HR" value={today.heart.resting ?? '—'} unit="bpm" color="var(--color-vital-rose)" onClick={() => setActiveMetric('heart')} />
-            <StatCard icon={HiOutlineMapPin} label="Steps" value={today.activity.steps ? today.activity.steps.toLocaleString() : '—'} unit="" color="var(--color-ion-500)" onClick={() => setActiveMetric('steps')} />
-            {/* <StatCard icon={HiOutlineScale} label="Weight" value={today.weight?.value ?? '—'} unit="kg" color="var(--color-ion-400)" onClick={() => setActiveMetric('weight')} /> */}
-            <StatCard icon={HiOutlineFire} label="Active Calories" value={today.activity.calories ?? '—'} unit="kcal" color="var(--color-vital-teal)" onClick={() => setActiveMetric('activeCalories')} />
-            <StatCard icon={HiOutlineCloud} label="SpO2" value={today.spo2 ?? '—'} unit="%" color="var(--color-vital-amber)" onClick={() => setActiveMetric('spo2')} />
-            {/* <StatCard icon={HiOutlineBeaker} label="Hydration" value={today.hydration ?? '—'} unit="L" color="var(--color-ion-400)" onClick={() => setActiveMetric('hydration')} /> */}
-            <StatCard icon={HiOutlineMapPin} label="Distance" value={today.activity.distance ?? '—'} unit="km" color="var(--color-ion-500)" onClick={() => setActiveMetric('steps')} />
-          </div>
+        {/* Full metric grid */}
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <StatCard
+            icon={HiOutlineMoon}
+            label="Sleep"
+            value={today.sleep.duration ?? '—'}
+            unit="h"
+            color={zone(today.sleep.duration, { goodMin: 7, okMin: 6 })}
+            onClick={() => setActiveMetric('sleep')}
+          />
+          <StatCard
+            icon={HiOutlineHeart}
+            label="Resting HR"
+            value={today.heart.resting ?? '—'}
+            unit="bpm"
+            color={zone(today.heart.resting, { goodMin: 60, okMin: 70, invert: true })}
+            onClick={() => setActiveMetric('heart')}
+          />
+          <StatCard
+            icon={HiOutlineHeart}
+            label="Avg Heart Rate"
+            value={today.heart.average ?? '—'}
+            unit="bpm"
+            color="var(--color-vital-rose)"
+            onClick={() => setActiveMetric('heart')}
+          />
+          <StatCard
+            icon={HiOutlineBolt}
+            label="VO2 Max"
+            value={today.heart.vo2max ?? '—'}
+            unit=""
+            color={zone(today.heart.vo2max, { goodMin: 42, okMin: 35 })}
+            onClick={() => setActiveMetric('heart')}
+          />
+          <StatCard
+            icon={HiOutlineMapPin}
+            label="Steps"
+            value={today.activity.steps ? today.activity.steps.toLocaleString() : '—'}
+            unit=""
+            color={zone(today.activity.steps, { goodMin: 8000, okMin: 4000 })}
+            onClick={() => setActiveMetric('steps')}
+          />
+          <StatCard
+            icon={HiOutlineMapPin}
+            label="Distance"
+            value={today.activity.distance ?? '—'}
+            unit="km"
+            color="var(--color-ion-500)"
+            onClick={() => setActiveMetric('steps')}
+          />
+          <StatCard
+            icon={HiOutlineClock}
+            label="Exercise"
+            value={today.activity.exerciseMinutes ?? '—'}
+            unit="min"
+            color={zone(today.activity.exerciseMinutes, { goodMin: 30, okMin: 10 })}
+            onClick={() => setActiveMetric('activeCalories')}
+          />
+          <StatCard
+            icon={HiOutlineFire}
+            label="Active Calories"
+            value={today.activity.calories ?? '—'}
+            unit="kcal"
+            color="var(--color-vital-teal)"
+            onClick={() => setActiveMetric('activeCalories')}
+          />
+          <StatCard
+            icon={HiOutlineFire}
+            label="Basal Calories"
+            value={today.activity.basalCalories ?? '—'}
+            unit="kcal"
+            color="var(--color-ion-400)"
+            onClick={() => setActiveMetric('activeCalories')}
+          />
+          <StatCard
+            icon={HiOutlineScale}
+            label="Weight"
+            value={today.weight?.value ?? '—'}
+            unit="kg"
+            color="var(--color-ion-400)"
+            onClick={() => setActiveMetric('weight')}
+          />
+          <StatCard
+            icon={HiOutlineCloud}
+            label="SpO2"
+            value={today.spo2 ?? '—'}
+            unit="%"
+            color={zone(today.spo2, { goodMin: 97, okMin: 94 })}
+            onClick={() => setActiveMetric('spo2')}
+          />
+          <StatCard
+            icon={HiOutlineBeaker}
+            label="Hydration"
+            value={today.hydration ?? '—'}
+            unit="L"
+            color={zone(today.hydration, { goodMin: 2, okMin: 1 })}
+            onClick={() => setActiveMetric('hydration')}
+          />
         </section>
 
         {/* Advice */}
@@ -222,7 +394,7 @@ export default function App() {
         </div>
       </main>
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onImported={loadData} />
+      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onImported={() => loadData({ background: true })} />
       <MetricDetailModal
         open={!!activeMetric}
         onClose={() => setActiveMetric(null)}
