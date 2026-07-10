@@ -6,6 +6,8 @@ import screenshotsRoutes from './routes/screenshots.routes.js'
 import reportsRoutes from './routes/reports.routes.js'
 import importRoutes from './routes/import.routes.js'
 import workoutsRoutes from './routes/workouts.routes.js'
+import webhookRoutes from './routes/webhook.routes.js'
+
 
 export function createApp({ clientUrl = 'http://localhost:5173' } = {}) {
   const app = express()
@@ -43,8 +45,13 @@ app.use(
   app.use('/api/import', importRoutes)
   app.use('/api/workouts', workoutsRoutes)
 
+  app.use('/api/webhook', webhookRoutes)
+
+
   app.use(notFoundHandler)
   app.use(errorHandler)
 
   return app
 }
+
+
