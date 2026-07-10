@@ -29,7 +29,7 @@ app.use(
   })
 );
 
-  app.use(express.json({ limit: '15mb' }))
+  app.use(express.json({ limit: '50mb' }))
 
   app.get('/', (req, res) => {
   res.send('🚀 VitalOS Server Running');

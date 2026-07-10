@@ -17,6 +17,12 @@ export function errorHandler(err, req, res, next) {
     return res.status(err.status).json({ error: err.message })
   }
 
+  if (err.type === 'entity.too.large') {
+    return res.status(413).json({
+      error: `Payload too large (${err.length ? Math.round(err.length / 1024 / 1024) + 'MB' : 'unknown size'} received, ${Math.round(err.limit / 1024 / 1024)}MB max). Try narrowing which health metrics are included in the export.`,
+    })
+  }
+
   if (err.name === 'ValidationError') {
     return res.status(400).json({ error: err.message })
   }
