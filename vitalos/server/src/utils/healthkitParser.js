@@ -517,6 +517,39 @@ export function parseWorkouts(workoutsArr) {
     .filter((w) => w.date && w.type)
 }
 
+export function parseNum(val) {
+  if (val == null) return null
+  if (typeof val === 'number') return isNaN(val) ? null : val
+  if (typeof val === 'string') {
+    const cleaned = val.replace(/,/g, '').replace(/[^0-9.-]/g, '').trim()
+    if (!cleaned) return null
+    const n = Number(cleaned)
+    return isNaN(n) ? null : n
+  }
+  return null
+}
+
+export function getField(source, ...aliases) {
+  if (!source || typeof source !== 'object') return null
+  // 1. Direct case-sensitive check
+  for (const a of aliases) {
+    if (source[a] !== undefined && source[a] !== null) return source[a]
+  }
+  // 2. Case-insensitive / symbol-stripped check
+  const normMap = new Map()
+  for (const [k, v] of Object.entries(source)) {
+    normMap.set(normalizeName(k), v)
+  }
+  for (const a of aliases) {
+    const na = normalizeName(a)
+    if (normMap.has(na)) {
+      const v = normMap.get(na)
+      if (v !== undefined && v !== null) return v
+    }
+  }
+  return null
+}
+
 /**
  * Parses Shortcuts JSON format:
  * {
@@ -529,63 +562,146 @@ export function parseWorkouts(workoutsArr) {
  */
 export function parseShortcutsPayload(payload) {
   const date = payload.date || dateOnly(new Date())
-  const m = payload.metrics || payload
+  const m = payload.metrics && typeof payload.metrics === 'object' ? { ...payload, ...payload.metrics } : payload
   const detectedMetrics = new Set()
   const rawSamples = []
 
-  const hr = typeof m.heartRate === 'object' && m.heartRate !== null ? m.heartRate : typeof m.heart === 'object' && m.heart !== null ? m.heart : {}
-  const hrNum = typeof m.heartRate === 'number' ? m.heartRate : typeof m.heart === 'number' ? m.heart : null
+  // Extract raw values with fuzzy key matching
+  const rawSteps = getField(m, 'steps', 'stepCount', 'step_count')
+  const rawDistance = getField(m, 'distanceKm', 'distance', 'distance_km', 'walkingRunningDistance', 'walking_running_distance')
+  const rawActiveCalories = getField(m, 'activeCalories', 'active_calories', 'activeEnergy', 'active_energy', 'calories')
+  const rawBasalCalories = getField(m, 'basalCalories', 'basal_calories', 'basalEnergy', 'basal_energy', 'restingCalories')
+  const rawExerciseMinutes = getField(m, 'exerciseMinutes', 'exercise_minutes', 'exerciseTime', 'appleExerciseTime')
+  const rawStandHours = getField(m, 'standHours', 'stand_hours', 'standTime')
+  const rawHydration = getField(m, 'hydrationL', 'hydration', 'water', 'dietaryWater')
 
-  const sleep = typeof m.sleep === 'object' && m.sleep !== null ? m.sleep : {}
-  const sleepNum = typeof m.sleep === 'number' ? m.sleep : typeof m.sleepHours === 'number' ? m.sleepHours : null
+  const rawHeart = getField(m, 'heartRate', 'heart_rate', 'heart', 'hr')
+  const rawRestingHeart = getField(m, 'restingHeartRate', 'resting_heart_rate', 'restingHr', 'resting')
+  const rawWalkingHeart = getField(m, 'walkingHeartRate', 'walking_heart_rate', 'walkingAverage', 'walkingHeartRateAverage')
+  const rawHrv = getField(m, 'hrv', 'heartRateVariability', 'heart_rate_variability')
+  const rawVo2max = getField(m, 'vo2max', 'vo2_max', 'vo2Max')
+  const rawSpo2 = getField(m, 'spo2', 'oxygenSaturation', 'oxygen_saturation', 'bloodOxygen')
+  const rawRespiratoryRate = getField(m, 'respiratoryRate', 'respiratory_rate')
 
-  const weight = typeof m.weight === 'object' && m.weight !== null ? m.weight : {}
-  const mobility = typeof m.mobility === 'object' && m.mobility !== null ? m.mobility : {}
-  const temperature = typeof m.temperature === 'object' && m.temperature !== null ? m.temperature : {}
+  const rawSleep = getField(m, 'sleep', 'sleepHours', 'sleep_hours', 'sleepDuration', 'sleep_duration', 'sleepAnalysis')
+  const rawWeight = getField(m, 'weight', 'bodyMass', 'body_mass')
+  const rawBmi = getField(m, 'bmi', 'bodyMassIndex')
+  const rawBodyFat = getField(m, 'bodyFat', 'bodyFatPercentage', 'body_fat')
+  const rawMobility = getField(m, 'mobility')
+  const rawTemperature = getField(m, 'temperature')
+
+  // Parse Heart Rate (can be number, string, or object)
+  let hrAverage, hrMin, hrMax, hrResting, hrWalking, hrHrvVal, hrVo2Val
+  if (typeof rawHeart === 'object' && rawHeart !== null) {
+    hrAverage = parseNum(getField(rawHeart, 'average', 'avg', 'value', 'latest'))
+    hrMin = parseNum(getField(rawHeart, 'min'))
+    hrMax = parseNum(getField(rawHeart, 'max'))
+    hrResting = parseNum(getField(rawHeart, 'resting'))
+    hrWalking = parseNum(getField(rawHeart, 'walkingAverage', 'walking'))
+    hrHrvVal = parseNum(getField(rawHeart, 'hrv'))
+    hrVo2Val = parseNum(getField(rawHeart, 'vo2max'))
+  } else {
+    hrAverage = parseNum(rawHeart)
+  }
+  const finalRestingHr = hrResting ?? parseNum(rawRestingHeart)
+  const finalWalkingHr = hrWalking ?? parseNum(rawWalkingHeart)
+  const finalHrv = hrHrvVal ?? parseNum(rawHrv)
+  const finalVo2 = hrVo2Val ?? parseNum(rawVo2max)
+
+  // Parse Sleep Duration (can be hours, minutes, seconds, or an object)
+  let sleepDuration, sleepScore, sleepDeep, sleepRem, sleepLight, sleepDebt
+  if (typeof rawSleep === 'object' && rawSleep !== null) {
+    const rawDur = getField(rawSleep, 'duration', 'hours', 'total', 'time')
+    const numDur = parseNum(rawDur)
+    if (numDur != null) {
+      if (numDur > 600) sleepDuration = numDur / 3600 // in seconds
+      else if (numDur > 24) sleepDuration = numDur / 60 // in minutes
+      else sleepDuration = numDur
+    }
+    sleepScore = parseNum(getField(rawSleep, 'score'))
+    sleepDeep = parseNum(getField(rawSleep, 'deep'))
+    sleepRem = parseNum(getField(rawSleep, 'rem'))
+    sleepLight = parseNum(getField(rawSleep, 'light', 'core'))
+    sleepDebt = parseNum(getField(rawSleep, 'debt'))
+  } else {
+    const numSleep = parseNum(rawSleep)
+    if (numSleep != null) {
+      if (numSleep > 600) sleepDuration = numSleep / 3600 // in seconds
+      else if (numSleep > 24) sleepDuration = numSleep / 60 // in minutes
+      else sleepDuration = numSleep
+    }
+  }
+
+  // Parse Distance (if in meters > 200, convert to km)
+  let distanceKm = parseNum(rawDistance)
+  if (distanceKm != null && distanceKm > 200) {
+    distanceKm = distanceKm / 1000
+  }
+
+  const stepsVal = parseNum(rawSteps)
+  const caloriesVal = parseNum(rawActiveCalories)
+  const basalCaloriesVal = parseNum(rawBasalCalories)
+  const exerciseMinutesVal = parseNum(rawExerciseMinutes)
+  const standHoursVal = parseNum(rawStandHours)
+  const hydrationVal = parseNum(rawHydration)
+  const spo2Val = parseNum(rawSpo2)
+  const respiratoryRateVal = parseNum(rawRespiratoryRate)
 
   const dayDoc = {
     date,
     activity: {
-      steps: m.steps != null ? Math.round(m.steps) : undefined,
-      distance: m.distanceKm != null ? round(m.distanceKm, 2) : m.distance != null ? round(m.distance, 2) : undefined,
-      calories: m.activeCalories != null ? Math.round(m.activeCalories) : undefined,
-      basalCalories: m.basalCalories != null ? Math.round(m.basalCalories) : undefined,
-      exerciseMinutes: m.exerciseMinutes != null ? Math.round(m.exerciseMinutes) : undefined,
+      steps: stepsVal != null ? Math.round(stepsVal) : undefined,
+      distance: distanceKm != null ? round(distanceKm, 2) : undefined,
+      calories: caloriesVal != null ? Math.round(caloriesVal) : undefined,
+      basalCalories: basalCaloriesVal != null ? Math.round(basalCaloriesVal) : undefined,
+      exerciseMinutes: exerciseMinutesVal != null ? Math.round(exerciseMinutesVal) : undefined,
     },
-    standHours: m.standHours != null ? Math.round(m.standHours) : undefined,
-    hydration: m.hydrationL != null ? round(m.hydrationL, 2) : m.hydration != null ? round(m.hydration, 2) : undefined,
+    standHours: standHoursVal != null ? Math.round(standHoursVal) : undefined,
+    hydration: hydrationVal != null ? round(hydrationVal, 2) : undefined,
     heart: {
-      average: hr.average != null ? Math.round(hr.average) : hr.latest != null ? Math.round(hr.latest) : hrNum != null ? Math.round(hrNum) : undefined,
-      resting: hr.resting != null ? Math.round(hr.resting) : m.restingHeartRate != null ? Math.round(m.restingHeartRate) : undefined,
-      walkingAverage: hr.walkingAverage != null ? Math.round(hr.walkingAverage) : m.walkingHeartRateAverage != null ? Math.round(m.walkingHeartRateAverage) : undefined,
-      min: hr.min != null ? Math.round(hr.min) : undefined,
-      max: hr.max != null ? Math.round(hr.max) : undefined,
-      hrv: m.hrv != null ? Math.round(m.hrv) : hr.hrv != null ? Math.round(hr.hrv) : undefined,
-      vo2max: m.vo2max != null ? round(m.vo2max, 1) : hr.vo2max != null ? round(hr.vo2max, 1) : undefined,
+      average: hrAverage != null ? Math.round(hrAverage) : undefined,
+      resting: finalRestingHr != null ? Math.round(finalRestingHr) : undefined,
+      walkingAverage: finalWalkingHr != null ? Math.round(finalWalkingHr) : undefined,
+      min: hrMin != null ? Math.round(hrMin) : undefined,
+      max: hrMax != null ? Math.round(hrMax) : undefined,
+      hrv: finalHrv != null ? Math.round(finalHrv) : undefined,
+      vo2max: finalVo2 != null ? round(finalVo2, 1) : undefined,
     },
-    spo2: m.spo2 != null ? round(m.spo2, 1) : undefined,
-    respiratoryRate: m.respiratoryRate != null ? round(m.respiratoryRate, 1) : undefined,
+    spo2: spo2Val != null ? round(spo2Val, 1) : undefined,
+    respiratoryRate: respiratoryRateVal != null ? round(respiratoryRateVal, 1) : undefined,
     weight: {
-      value: weight.value != null ? round(weight.value, 1) : typeof m.weight === 'number' ? round(m.weight, 1) : undefined,
-      bmi: weight.bmi != null ? round(weight.bmi, 1) : m.bmi != null ? round(m.bmi, 1) : undefined,
-      bodyFatPercentage: weight.bodyFatPercentage != null ? round(weight.bodyFatPercentage, 1) : m.bodyFat != null ? round(m.bodyFat, 1) : undefined,
+      value: parseNum(typeof rawWeight === 'object' ? getField(rawWeight, 'value') : rawWeight) != null
+        ? round(parseNum(typeof rawWeight === 'object' ? getField(rawWeight, 'value') : rawWeight), 1)
+        : undefined,
+      bmi: parseNum(rawBmi) != null ? round(parseNum(rawBmi), 1) : undefined,
+      bodyFatPercentage: parseNum(rawBodyFat) != null ? round(parseNum(rawBodyFat), 1) : undefined,
     },
     mobility: {
-      walkingSpeed: mobility.walkingSpeed != null ? round(mobility.walkingSpeed, 2) : m.walkingSpeed != null ? round(m.walkingSpeed, 2) : undefined,
-      walkingAsymmetry: mobility.walkingAsymmetry != null ? round(mobility.walkingAsymmetry, 1) : m.walkingAsymmetry != null ? round(m.walkingAsymmetry, 1) : undefined,
-      stepLength: mobility.stepLength != null ? round(mobility.stepLength, 1) : m.stepLength != null ? round(m.stepLength, 1) : undefined,
+      walkingSpeed: parseNum(typeof rawMobility === 'object' ? getField(rawMobility, 'walkingSpeed') : null) != null
+        ? round(parseNum(getField(rawMobility, 'walkingSpeed')), 2)
+        : undefined,
+      walkingAsymmetry: parseNum(typeof rawMobility === 'object' ? getField(rawMobility, 'walkingAsymmetry') : null) != null
+        ? round(parseNum(getField(rawMobility, 'walkingAsymmetry')), 1)
+        : undefined,
+      stepLength: parseNum(typeof rawMobility === 'object' ? getField(rawMobility, 'stepLength') : null) != null
+        ? round(parseNum(getField(rawMobility, 'stepLength')), 1)
+        : undefined,
     },
     temperature: {
-      body: temperature.body != null ? round(temperature.body, 2) : m.bodyTemperature != null ? round(m.bodyTemperature, 2) : undefined,
-      wrist: temperature.wrist != null ? round(temperature.wrist, 2) : m.wristTemperature != null ? round(m.wristTemperature, 2) : undefined,
+      body: parseNum(typeof rawTemperature === 'object' ? getField(rawTemperature, 'body') : null) != null
+        ? round(parseNum(getField(rawTemperature, 'body')), 2)
+        : undefined,
+      wrist: parseNum(typeof rawTemperature === 'object' ? getField(rawTemperature, 'wrist') : null) != null
+        ? round(parseNum(getField(rawTemperature, 'wrist')), 2)
+        : undefined,
     },
     sleep: {
-      duration: sleep.duration != null ? round(sleep.duration, 2) : sleepNum != null ? round(sleepNum, 2) : undefined,
-      score: sleep.score != null ? Math.round(sleep.score) : undefined,
-      deep: sleep.deep != null ? round(sleep.deep, 2) : undefined,
-      rem: sleep.rem != null ? round(sleep.rem, 2) : undefined,
-      light: sleep.light != null ? round(sleep.light, 2) : undefined,
-      debt: sleep.debt != null ? round(sleep.debt, 2) : undefined,
+      duration: sleepDuration != null ? round(sleepDuration, 2) : undefined,
+      score: sleepScore != null ? Math.round(sleepScore) : (sleepDuration != null ? Math.round(clamp((sleepDuration / 8) * 100, 0, 100)) : undefined),
+      deep: sleepDeep != null ? round(sleepDeep, 2) : undefined,
+      rem: sleepRem != null ? round(sleepRem, 2) : undefined,
+      light: sleepLight != null ? round(sleepLight, 2) : undefined,
+      debt: sleepDebt != null ? round(sleepDebt, 2) : undefined,
     },
     extensibleMetrics: m.extensible || {},
   }

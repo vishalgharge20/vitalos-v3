@@ -69,6 +69,8 @@ export const receiveHealthKitSync = asyncHandler(async (req, res) => {
     throw new ApiError(401, 'Unauthorized: Invalid or missing sync secret.')
   }
 
+  console.log('[sync] Incoming payload:', JSON.stringify(req.body))
+
   let parsed
   try {
     parsed = parseUnifiedSyncPayload(req.body)
@@ -80,6 +82,7 @@ export const receiveHealthKitSync = asyncHandler(async (req, res) => {
         $set: {
           lastSyncStatus: 'error',
           lastError: `Payload parsing failed: ${err.message}`,
+          lastPayloadSummary: req.body,
         },
       },
       { upsert: true }
@@ -183,6 +186,7 @@ export const receiveHealthKitSync = asyncHandler(async (req, res) => {
         lastSyncMetricsCount: parsed.detectedMetrics.length,
         lastSyncWorkoutsCount: workoutsUpserted,
         lastError: null,
+        lastPayloadSummary: req.body,
       },
       $inc: { totalSyncs: 1 },
       $addToSet: { activeMetrics: { $each: parsed.detectedMetrics } },
@@ -245,6 +249,7 @@ export const getSyncStatus = asyncHandler(async (req, res) => {
     totalWorkouts,
     activeMetrics: device.activeMetrics || [],
     lastError: device.lastError,
+    lastPayloadSummary: device.lastPayloadSummary,
     syncToken: activeSecret,
     isEnvSecret: envConfigured,
   })
