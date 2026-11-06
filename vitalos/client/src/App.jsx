@@ -85,22 +85,28 @@ function computeStreak(days) {
 
 function buildAdvice(today) {
   const advice = []
-  if (today.sleep.score != null && today.sleep.score < 60) {
-    advice.push({ text: `Sleep score was ${today.sleep.score} — an earlier night tonight would help.`, color: 'var(--color-vital-amber)' })
-  } else if (today.sleep.score != null) {
-    advice.push({ text: `Sleep score was ${today.sleep.score} — solid recovery runway for today.`, color: 'var(--color-vital-teal)' })
+  const sleepScore = today?.sleep?.score
+  const steps = today?.activity?.steps
+  const restingHr = today?.heart?.resting
+  const spo2 = today?.spo2
+  const exerciseMin = today?.activity?.exerciseMinutes
+
+  if (sleepScore != null && sleepScore < 60) {
+    advice.push({ text: `Sleep score was ${sleepScore} — an earlier night tonight would help.`, color: 'var(--color-vital-amber)' })
+  } else if (sleepScore != null) {
+    advice.push({ text: `Sleep score was ${sleepScore} — solid recovery runway for today.`, color: 'var(--color-vital-teal)' })
   }
-  if (today.activity.steps < 4000) {
+  if (steps != null && steps < 4000) {
     advice.push({ text: 'Step count is low so far — a 15 minute walk would help hit your daily target.', color: 'var(--color-ion-500)' })
   }
-  if (today.heart.resting != null) {
-    advice.push({ text: `Resting heart rate at ${today.heart.resting} bpm.`, color: 'var(--color-vital-violet)' })
+  if (restingHr != null) {
+    advice.push({ text: `Resting heart rate at ${restingHr} bpm.`, color: 'var(--color-vital-violet)' })
   }
-  if (today.spo2 != null && today.spo2 < 95) {
-    advice.push({ text: `SpO2 read ${today.spo2}% — a little lower than typical, worth keeping an eye on.`, color: 'var(--color-vital-rose)' })
+  if (spo2 != null && spo2 < 95) {
+    advice.push({ text: `SpO2 read ${spo2}% — a little lower than typical, worth keeping an eye on.`, color: 'var(--color-vital-rose)' })
   }
-  if (today.activity.exerciseMinutes != null && today.activity.exerciseMinutes < 20) {
-    advice.push({ text: `Only ${today.activity.exerciseMinutes} exercise minutes so far — WHO guidance is ~30/day.`, color: 'var(--color-vital-amber)' })
+  if (exerciseMin != null && exerciseMin < 20) {
+    advice.push({ text: `Only ${exerciseMin} exercise minutes so far — WHO guidance is ~30/day.`, color: 'var(--color-vital-amber)' })
   }
   return advice.slice(0, 4)
 }
@@ -382,12 +388,12 @@ export default function App() {
             </div>
             <div className="flex flex-col items-center">
               <DialRing
-                value={today.sleep.score ?? 0}
+                value={today?.sleep?.score ?? 0}
                 size={180}
                 label="Sleep"
                 icon={HiOutlineMoon}
-                color={zone(today.sleep.score, { goodMin: 85, okMin: 60 })}
-                sublabel={today.sleep.score == null ? 'No sleep data' : 'est.'}
+                color={zone(today?.sleep?.score, { goodMin: 85, okMin: 60 })}
+                sublabel={today?.sleep?.score == null ? 'No sleep data' : 'est.'}
               />
             </div>
             <div className="flex flex-col items-center">
@@ -424,23 +430,23 @@ export default function App() {
           <StatCard
             icon={HiOutlineMoon}
             label="Sleep"
-            value={today.sleep.duration ?? '—'}
+            value={today?.sleep?.duration ?? '—'}
             unit="h"
-            color={zone(today.sleep.duration, { goodMin: 7, okMin: 6 })}
+            color={zone(today?.sleep?.duration, { goodMin: 7, okMin: 6 })}
             onClick={() => setActiveMetric('sleep')}
           />
           <StatCard
             icon={HiOutlineHeart}
             label="Resting HR"
-            value={today.heart.resting ?? '—'}
+            value={today?.heart?.resting ?? '—'}
             unit="bpm"
-            color={zone(today.heart.resting, { goodMin: 60, okMin: 70, invert: true })}
+            color={zone(today?.heart?.resting, { goodMin: 60, okMin: 70, invert: true })}
             onClick={() => setActiveMetric('heart')}
           />
           <StatCard
             icon={HiOutlineHeart}
             label="Avg Heart Rate"
-            value={today.heart.average ?? '—'}
+            value={today?.heart?.average ?? '—'}
             unit="bpm"
             color="var(--color-vital-rose)"
             onClick={() => setActiveMetric('heart')}
@@ -448,15 +454,15 @@ export default function App() {
           <StatCard
             icon={HiOutlineMapPin}
             label="Steps"
-            value={today.activity.steps ? today.activity.steps.toLocaleString() : '—'}
+            value={today?.activity?.steps != null ? today.activity.steps.toLocaleString() : '—'}
             unit=""
-            color={zone(today.activity.steps, { goodMin: 8000, okMin: 4000 })}
+            color={zone(today?.activity?.steps, { goodMin: 8000, okMin: 4000 })}
             onClick={() => setActiveMetric('steps')}
           />
           <StatCard
             icon={HiOutlineMapPin}
             label="Distance"
-            value={today.activity.distance ?? '—'}
+            value={today?.activity?.distance ?? '—'}
             unit="km"
             color="var(--color-ion-500)"
             onClick={() => setActiveMetric('steps')}
@@ -464,15 +470,15 @@ export default function App() {
           <StatCard
             icon={HiOutlineClock}
             label="Exercise"
-            value={today.activity.exerciseMinutes ?? '—'}
+            value={today?.activity?.exerciseMinutes ?? '—'}
             unit="min"
-            color={zone(today.activity.exerciseMinutes, { goodMin: 30, okMin: 10 })}
+            color={zone(today?.activity?.exerciseMinutes, { goodMin: 30, okMin: 10 })}
             onClick={() => setActiveMetric('activeCalories')}
           />
           <StatCard
             icon={HiOutlineFire}
             label="Active Calories"
-            value={today.activity.calories ?? '—'}
+            value={today?.activity?.calories ?? '—'}
             unit="kcal"
             color="var(--color-vital-teal)"
             onClick={() => setActiveMetric('activeCalories')}
@@ -480,7 +486,7 @@ export default function App() {
           <StatCard
             icon={HiOutlineFire}
             label="Basal Calories"
-            value={today.activity.basalCalories ?? '—'}
+            value={today?.activity?.basalCalories ?? '—'}
             unit="kcal"
             color="var(--color-ion-400)"
             onClick={() => setActiveMetric('activeCalories')}
@@ -488,9 +494,9 @@ export default function App() {
           <StatCard
             icon={HiOutlineCloud}
             label="SpO2"
-            value={today.spo2 ?? '—'}
+            value={today?.spo2 ?? '—'}
             unit="%"
-            color={zone(today.spo2, { goodMin: 97, okMin: 94 })}
+            color={zone(today?.spo2, { goodMin: 97, okMin: 94 })}
             onClick={() => setActiveMetric('spo2')}
           />
         </section>
