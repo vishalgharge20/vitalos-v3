@@ -80,3 +80,10 @@ export async function importWorkouts(workouts) {
 
 export const getWorkouts = (limit = 15) =>
   api.get('/api/workouts', { params: { limit } }).then((r) => r.data)
+
+// ---- Apple Health live sync ------------------------------------------------
+
+export const getSyncStatus = () => api.get('/api/sync/status').then((r) => r.data)
+export const generateSyncToken = () => api.post('/api/sync/generate-token').then((r) => r.data)
+export const getSyncEndpointUrl = () => `${API_BASE_URL}/api/sync/healthkit`
+export const getShortcutDownloadUrl = () => `${API_BASE_URL}/api/sync/download-shortcut`

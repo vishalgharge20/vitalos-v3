@@ -28,8 +28,9 @@ import ChartCard from '@/components/ui/ChartCard'
 import { RecommendationCard } from '@/components/ui/InsightCard'
 import ImportModal from '@/components/ui/ImportModal'
 import MetricDetailModal from '@/components/ui/MetricDetailModal'
+import SyncStatusModal from '@/components/ui/SyncStatusModal'
 import { getTodayRecord, getLastNDays, dummyWorkouts } from '@/data/dummyData'
-import { getRecords, getWorkouts } from '@/api/client'
+import { getRecords, getWorkouts, getSyncStatus } from '@/api/client'
 import { computeStrain, computeRecovery } from '@/utils/wellness'
 
 const CACHE_KEY = 'vitalos_dashboard_cache_v1'
@@ -225,7 +226,18 @@ export default function App() {
   const [usingDemoData, setUsingDemoData] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [syncStatus, setSyncStatus] = useState(null)
   const [activeMetric, setActiveMetric] = useState(null)
+
+  const fetchSyncStatus = useCallback(async () => {
+    try {
+      const data = await getSyncStatus()
+      setSyncStatus(data)
+    } catch {
+      // Server offline or initial dev start
+    }
+  }, [])
 
   const loadData = useCallback(async ({ background = false } = {}) => {
     if (background) setRefreshing(true)
@@ -257,6 +269,7 @@ export default function App() {
     // Cache paints immediately (if present); this fetch always runs to
     // pick up anything imported since the cache was written.
     loadData({ background: !!cached })
+    fetchSyncStatus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -316,13 +329,34 @@ export default function App() {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => setImportOpen(true)}
-          className="flex items-center gap-2 rounded-xl bg-[var(--color-ion-500)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
-        >
-          <HiOutlineArrowUpTray size={16} />
-          Import Apple Health
-        </button>
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={() => setSyncModalOpen(true)}
+            className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-border-strong)] hover:text-white"
+            title="Apple Health Live Sync Status"
+          >
+            <span
+              className={`h-2 w-2 rounded-full ${
+                syncStatus?.connected
+                  ? 'bg-[var(--color-vital-teal)] shadow-[0_0_8px_var(--color-vital-teal)]'
+                  : 'bg-[var(--color-vital-amber)]'
+              }`}
+            />
+            <span className="hidden sm:inline">
+              {syncStatus?.connected ? 'Apple Health: Synced' : 'Apple Health Sync'}
+            </span>
+            <span className="sm:hidden">Sync</span>
+          </button>
+
+          <button
+            onClick={() => setImportOpen(true)}
+            className="flex items-center gap-2 rounded-xl bg-[var(--color-ion-500)] px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
+          >
+            <HiOutlineArrowUpTray size={16} />
+            <span className="hidden sm:inline">Import Apple Health</span>
+            <span className="sm:hidden">Import</span>
+          </button>
+        </div>
       </header>
 
       <main className="mx-auto max-w-5xl space-y-6 px-5 py-6 sm:px-8">
@@ -544,7 +578,20 @@ export default function App() {
         </div>
       </main>
 
-      <ImportModal open={importOpen} onClose={() => setImportOpen(false)} onImported={() => loadData({ background: true })} />
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          loadData({ background: true })
+          fetchSyncStatus()
+        }}
+      />
+      <SyncStatusModal
+        open={syncModalOpen}
+        onClose={() => setSyncModalOpen(false)}
+        syncStatus={syncStatus}
+        onRefreshStatus={fetchSyncStatus}
+      />
       <MetricDetailModal
         open={!!activeMetric}
         onClose={() => setActiveMetric(null)}

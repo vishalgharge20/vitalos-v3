@@ -21,6 +21,8 @@ const HeartSchema = new Schema(
     min: Number,
     max: Number,
     vo2max: Number,
+    hrv: Number, // Heart Rate Variability (SDNN in ms)
+    walkingAverage: Number, // Walking heart rate average (bpm)
   },
   { _id: false }
 )
@@ -45,7 +47,25 @@ const WeightSchema = new Schema(
   {
     value: Number, // kg
     bmi: Number,
+    bodyFatPercentage: Number, // %
     goal: Number,
+  },
+  { _id: false }
+)
+
+const MobilitySchema = new Schema(
+  {
+    walkingSpeed: Number, // km/h or m/s
+    walkingAsymmetry: Number, // %
+    stepLength: Number, // cm
+  },
+  { _id: false }
+)
+
+const TemperatureSchema = new Schema(
+  {
+    body: Number, // °C
+    wrist: Number, // °C
   },
   { _id: false }
 )
@@ -105,9 +125,14 @@ const DailyRecordSchema = new Schema(
     heart: HeartSchema,
     stress: StressSchema,
     spo2: Number,
+    respiratoryRate: Number, // breaths per min
+    standHours: Number, // hours stood
     weight: WeightSchema,
     activity: ActivitySchema,
+    mobility: MobilitySchema,
+    temperature: TemperatureSchema,
     hydration: Number, // liters
+    extensibleMetrics: { type: Schema.Types.Mixed, default: {} },
 
     screenshots: [ScreenshotRefSchema],
     notes: { type: String, default: '' },

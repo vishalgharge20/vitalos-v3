@@ -57,9 +57,11 @@ export default function MetricDetailModal({ open, onClose, metric, today, trend 
             <DetailStat label="Min" value={today.heart.min} unit="bpm" />
             <DetailStat label="Max" value={today.heart.max} unit="bpm" />
           </div>
-          {today.heart.vo2max != null && (
-            <div className="grid grid-cols-2 gap-2.5">
-              <DetailStat label="VO2 Max" value={today.heart.vo2max} />
+          {(today.heart.hrv != null || today.heart.walkingAverage != null || today.heart.vo2max != null) && (
+            <div className="grid grid-cols-3 gap-2.5">
+              {today.heart.hrv != null && <DetailStat label="HRV (SDNN)" value={today.heart.hrv} unit="ms" />}
+              {today.heart.walkingAverage != null && <DetailStat label="Walking Avg" value={today.heart.walkingAverage} unit="bpm" />}
+              {today.heart.vo2max != null && <DetailStat label="VO2 Max" value={today.heart.vo2max} />}
             </div>
           )}
           <div>
@@ -76,6 +78,12 @@ export default function MetricDetailModal({ open, onClose, metric, today, trend 
             <DetailStat label="Distance" value={today.activity.distance} unit="km" />
             <DetailStat label="Exercise" value={today.activity.exerciseMinutes} unit="min" />
           </div>
+          {(today.standHours != null || today.mobility?.walkingSpeed != null) && (
+            <div className="grid grid-cols-2 gap-2.5">
+              {today.standHours != null && <DetailStat label="Stand Hours" value={today.standHours} unit="h" />}
+              {today.mobility?.walkingSpeed != null && <DetailStat label="Walking Speed" value={today.mobility.walkingSpeed} unit="km/h" />}
+            </div>
+          )}
           <div>
             <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">Steps — last 14 days</p>
             <div className="h-40 w-full">
@@ -94,9 +102,12 @@ export default function MetricDetailModal({ open, onClose, metric, today, trend 
 
       {metric === 'weight' && (
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             <DetailStat label="Weight" value={today.weight?.value} unit="kg" />
             <DetailStat label="BMI" value={today.weight?.bmi} />
+            {today.weight?.bodyFatPercentage != null && (
+              <DetailStat label="Body Fat" value={today.weight.bodyFatPercentage} unit="%" />
+            )}
           </div>
           <div>
             <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">Weight — last 14 days</p>
@@ -123,6 +134,12 @@ export default function MetricDetailModal({ open, onClose, metric, today, trend 
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-2.5">
             <DetailStat label="SpO2" value={today.spo2} unit="%" />
+            {today.respiratoryRate != null && (
+              <DetailStat label="Respiratory Rate" value={today.respiratoryRate} unit="br/min" />
+            )}
+            {today.temperature?.body != null && (
+              <DetailStat label="Body Temp" value={today.temperature.body} unit="°C" />
+            )}
           </div>
           <div>
             <p className="mb-2 text-xs text-[var(--color-text-tertiary)]">SpO2 — last 14 days</p>
