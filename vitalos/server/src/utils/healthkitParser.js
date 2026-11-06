@@ -706,6 +706,38 @@ export function parseShortcutsPayload(payload) {
     extensibleMetrics: m.extensible || {},
   }
 
+  // Heuristic recovery for shortcuts where variables were accidentally placed into Dictionary Keys
+  for (const [key, val] of Object.entries(payload)) {
+    if (typeof key === 'string' && key.includes('\n')) {
+      const parts = key.split('\n').map((s) => Number(s.trim())).filter((n) => !isNaN(n))
+      if (parts.length > 5) {
+        const sum = parts.reduce((a, b) => a + b, 0)
+        const avg = sum / parts.length
+        // 1. All integers > 0 and sum > 100 -> Steps
+        if (dayDoc.activity.steps == null && parts.every((n) => Number.isInteger(n) && n >= 0) && sum > 100) {
+          dayDoc.activity.steps = Math.round(sum)
+        }
+        // 2. All values between 70 and 100 -> SpO2 percentage
+        else if (dayDoc.spo2 == null && parts.every((n) => n >= 70 && n <= 100)) {
+          dayDoc.spo2 = round(avg, 1)
+        }
+        // 3. Small floats summing < 50 -> Distance (km)
+        else if (dayDoc.activity.distance == null && parts.some((n) => !Number.isInteger(n)) && sum < 50) {
+          dayDoc.activity.distance = round(sum, 2)
+        }
+        // 4. Floats or integers summing between 50 and 5000 -> Active Calories
+        else if (dayDoc.activity.calories == null && sum >= 50 && sum < 5000) {
+          dayDoc.activity.calories = Math.round(sum)
+        }
+      }
+    } else if (typeof key === 'string' && /^\d+$/.test(key.trim())) {
+      const n = Number(key.trim())
+      if (n >= 40 && n <= 110 && dayDoc.heart.resting == null) {
+        dayDoc.heart.resting = n
+      }
+    }
+  }
+
   // Record detected metrics & synthesize raw samples for deduplicated storage
   if (dayDoc.activity.steps != null) {
     detectedMetrics.add('steps')
