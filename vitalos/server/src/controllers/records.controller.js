@@ -1,5 +1,8 @@
 import DailyRecord from '../models/DailyRecord.js'
 import Screenshot from '../models/Screenshot.js'
+import Workout from '../models/Workout.js'
+import HealthSample from '../models/HealthSample.js'
+import SyncDevice from '../models/SyncDevice.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { ApiError } from '../utils/validation.js'
 import { isValidDateString } from '../utils/validation.js'
@@ -111,8 +114,69 @@ export const deleteRecord = asyncHandler(async (req, res) => {
   res.json({ deleted: true, date })
 })
 
-// DELETE /api/records — wipes everything (Settings > Delete All Data)
+// DELETE /api/records — wipes everything and initializes today to 0
 export const deleteAllRecords = asyncHandler(async (req, res) => {
-  await Promise.all([DailyRecord.deleteMany({}), Screenshot.deleteMany({})])
-  res.json({ deleted: true })
+  await Promise.all([
+    DailyRecord.deleteMany({}),
+    Screenshot.deleteMany({}),
+    Workout.deleteMany({}),
+    HealthSample.deleteMany({}),
+  ])
+
+  // Reset sync device state
+  await SyncDevice.updateMany(
+    { deviceId: 'primary-ios' },
+    {
+      $set: {
+        lastSyncStatus: 'idle',
+        lastSyncMessage: 'Ready for initial sync from iPhone',
+        lastSyncMetricsCount: 0,
+        lastSyncWorkoutsCount: 0,
+        totalSyncs: 0,
+        activeMetrics: [],
+        lastError: null,
+        lastPayloadSummary: null,
+      },
+    }
+  )
+
+  // Initialize today's record cleanly with 0s so frontend displays fresh zeros (not demo data)
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const initializedToday = await DailyRecord.create({
+    date: todayStr,
+    activity: {
+      steps: 0,
+      distance: 0,
+      calories: 0,
+      basalCalories: 0,
+      exerciseMinutes: 0,
+    },
+    sleep: {
+      duration: 0,
+      deep: 0,
+      rem: 0,
+      light: 0,
+      score: 0,
+    },
+    heart: {
+      average: null,
+      resting: null,
+      hrv: null,
+      walkingAverage: null,
+      min: null,
+      max: null,
+    },
+    spo2: null,
+    recovery: 0,
+    readiness: 0,
+    hydration: 0,
+    screenshots: [],
+    notes: '',
+  })
+
+  res.json({
+    deleted: true,
+    message: 'Database reset successfully. Today initialized to 0.',
+    today: initializedToday,
+  })
 })

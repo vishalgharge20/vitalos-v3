@@ -10,6 +10,7 @@ import {
   HiOutlineCloud,
   HiOutlineBolt,
   HiOutlineClock,
+  HiOutlineTrash,
 } from 'react-icons/hi2'
 import {
   ResponsiveContainer,
@@ -29,6 +30,7 @@ import { RecommendationCard } from '@/components/ui/InsightCard'
 import ImportModal from '@/components/ui/ImportModal'
 import MetricDetailModal from '@/components/ui/MetricDetailModal'
 import SyncStatusModal from '@/components/ui/SyncStatusModal'
+import ResetDatabaseModal from '@/components/ui/ResetDatabaseModal'
 import { getTodayRecord, getLastNDays, dummyWorkouts } from '@/data/dummyData'
 import { getRecords, getWorkouts, getSyncStatus } from '@/api/client'
 import { computeStrain, computeRecovery } from '@/utils/wellness'
@@ -233,6 +235,7 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [syncModalOpen, setSyncModalOpen] = useState(false)
+  const [resetModalOpen, setResetModalOpen] = useState(false)
   const [syncStatus, setSyncStatus] = useState(null)
   const [activeMetric, setActiveMetric] = useState(null)
 
@@ -361,6 +364,15 @@ export default function App() {
             <HiOutlineArrowUpTray size={16} />
             <span className="hidden sm:inline">Import Apple Health</span>
             <span className="sm:hidden">Import</span>
+          </button>
+
+          <button
+            onClick={() => setResetModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-2 text-xs font-medium text-[var(--color-text-secondary)] transition hover:border-[var(--color-vital-rose)]/50 hover:text-[var(--color-vital-rose)]"
+            title="Reset Database to 0"
+          >
+            <HiOutlineTrash size={15} />
+            <span className="hidden md:inline">Reset DB</span>
           </button>
         </div>
       </header>
@@ -589,6 +601,14 @@ export default function App() {
         onClose={() => setImportOpen(false)}
         onImported={() => {
           loadData({ background: true })
+          fetchSyncStatus()
+        }}
+      />
+      <ResetDatabaseModal
+        open={resetModalOpen}
+        onClose={() => setResetModalOpen(false)}
+        onResetComplete={() => {
+          loadData({ background: false })
           fetchSyncStatus()
         }}
       />
